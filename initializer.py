@@ -10,7 +10,7 @@ logger = logging.getLogger()
 # Database configuration using environment variables with defaults
 db_config = {
     "host": os.getenv("DB_HOST", "localhost"),
-    "user": os.getenv("DB_USER", "sigma"),
+    "user": os.getenv("DB_USER", "root"),  # Changed the username to 'root'
     "password": os.getenv("DB_PASSWORD", "sigma"),
     "database": os.getenv("DB_NAME", "sigma_db"),
 }
@@ -62,6 +62,7 @@ def initialize_sql_tables():
                     tactics TEXT DEFAULT NULL,
                     techniques TEXT DEFAULT NULL,
                     ml_description TEXT DEFAULT NULL,
+                    risk INT DEFAULT NULL,
                     UNIQUE INDEX unique_log (unique_hash)
                 );
                 """
@@ -74,6 +75,24 @@ def initialize_sql_tables():
         if connection.is_connected():
             connection.close()
 
+def ensure_column_exists(table_name, column_name, column_definition):
+    """Ensure the specified column exists in the given table."""
+    try:
+        connection = mysql.connector.connect(**db_config)
+        with connection.cursor() as cursor:
+            cursor.execute(f"SHOW COLUMNS FROM {table_name} LIKE '{column_name}'")
+            result = cursor.fetchone()
+            if not result:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+                connection.commit()
+                logger.info(f"Added '{column_name}' column to '{table_name}' table.")
+    except Error as e:
+        logger.error(f"Error ensuring '{column_name}' column exists in '{table_name}': {e}")
+    finally:
+        if connection.is_connected():
+            connection.close()
+
 if __name__ == "__main__":
     create_database()
     initialize_sql_tables()
+    ensure_column_exists("sigma_alerts", "risk", "INT DEFAULT NULL")
