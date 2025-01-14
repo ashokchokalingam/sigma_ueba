@@ -72,6 +72,7 @@ def initialize_sql_tables():
                 tactics TEXT DEFAULT NULL,
                 techniques TEXT DEFAULT NULL,
                 ml_description TEXT DEFAULT NULL,
+                risk INT DEFAULT NULL,
                 UNIQUE INDEX unique_log (unique_hash)
             );
             """
@@ -207,7 +208,7 @@ def process_log_file(file_path, last_processed_time):
                         logger.error(f"Failed to process time: {system_time} | Error: {e}")
                         system_time = None
 
-                processed_data.append((title, tags, description, system_time.strftime("%Y-%m-%d %H:%M:%S"), computer_name, user_id, event_id, provider_name, ip_address, task, rule_level, target_user_name, target_domain_name, ruleid, line.strip(), tactics, techniques))
+                processed_data.append((title, tags, description, system_time.strftime("%Y-%m-%d %H:%M:%S"), computer_name, user_id, event_id, provider_name, ip_address, task, rule_level, target_user_name, target_domain_name, ruleid, line.strip(), tactics, techniques, None))  # Add None for risk value
 
             except Exception as e:
                 logger.error(f"Failed to process line: {line.strip()} | Error: {e}")
@@ -224,10 +225,10 @@ def insert_data_to_sql(data, table, cluster_value):
             connection = mysql.connector.connect(**db_config)
             with connection.cursor() as cursor:
                 insert_query = f"""
-                INSERT INTO {table} (title, tags, description, system_time, computer_name, user_id, event_id, provider_name, ml_cluster, ip_address, task, rule_level, target_user_name, target_domain_name, ruleid, raw, unique_hash, tactics, techniques, ml_description)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, SHA2(CONCAT_WS('|', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s), 256), %s, %s, %s)
+                INSERT INTO {table} (title, tags, description, system_time, computer_name, user_id, event_id, provider_name, ml_cluster, ip_address, task, rule_level, target_user_name, target_domain_name, ruleid, raw, unique_hash, tactics, techniques, ml_description, risk)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, SHA2(CONCAT_WS('|', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s), 256), %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
-                title = VALUES(title), tags = VALUES(tags), description = VALUES(description), computer_name = VALUES(computer_name), user_id = VALUES(user_id), event_id = VALUES(event_id), provider_name = VALUES(provider_name), ml_cluster = VALUES(ml_cluster), ip_address = VALUES(ip_address), task = VALUES(task), rule_level = VALUES(rule_level), target_user_name = VALUES(target_user_name), target_domain_name = VALUES(target_domain_name), ruleid = VALUES(ruleid), raw = VALUES(raw), tactics = VALUES(tactics), techniques = VALUES(techniques), ml_description = VALUES(ml_description);
+                title = VALUES(title), tags = VALUES(tags), description = VALUES(description), computer_name = VALUES(computer_name), user_id = VALUES(user_id), event_id = VALUES(event_id), provider_name = VALUES(provider_name), ml_cluster = VALUES(ml_cluster), ip_address = VALUES(ip_address), task = VALUES(task), rule_level = VALUES(rule_level), target_user_name = VALUES(target_user_name), target_domain_name = VALUES(target_domain_name), ruleid = VALUES(ruleid), raw = VALUES(raw), tactics = VALUES(tactics), techniques = VALUES(techniques), ml_description = VALUES(ml_description), risk = VALUES(risk);
                 """
                 # Batch insert in chunks
                 for i in range(0, len(data), BATCH_SIZE):
@@ -244,7 +245,8 @@ def insert_data_to_sql(data, table, cluster_value):
                             row[3], row[0], row[1], row[2], row[4], row[5], row[6], row[7], row[11], row[12], row[13],
                             row[15],  # tactics
                             row[16],  # techniques
-                            None   # ml_description
+                            None,  # ml_description
+                            row[17]  # risk (use the provided value)
                         ) for row in batch
                     ]
                     cursor.executemany(insert_query, data_with_cluster)
@@ -361,6 +363,7 @@ if __name__ == "__main__":
     ensure_column_exists("sigma_alerts", "target_user_name", "VARCHAR(100)")
     ensure_column_exists("sigma_alerts", "target_domain_name", "VARCHAR(100)")
     ensure_column_exists("sigma_alerts", "ruleid", "VARCHAR(50)")
+    ensure_column_exists("sigma_alerts", "risk", "INT DEFAULT NULL")
 
     # Start the truncation scheduling in a separate thread
     truncation_thread = threading.Thread(target=schedule_truncation)
