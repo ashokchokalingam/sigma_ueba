@@ -10,7 +10,7 @@ logger = logging.getLogger()
 # Database configuration using environment variables with defaults
 db_config = {
     "host": os.getenv("DB_HOST", "localhost"),
-    "user": os.getenv("DB_USER", "root"),  # Changed the username to 'root'
+    "user": os.getenv("DB_USER", "root"),
     "password": os.getenv("DB_PASSWORD", "sigma"),
     "database": os.getenv("DB_NAME", "sigma_db"),
 }
@@ -92,7 +92,31 @@ def ensure_column_exists(table_name, column_name, column_definition):
         if connection.is_connected():
             connection.close()
 
+def create_indexes():
+    """Create indexes on all columns in the sigma_alerts table."""
+    try:
+        connection = mysql.connector.connect(**db_config)
+        if connection.is_connected():
+            with connection.cursor() as cursor:
+                columns = [
+                    "id", "title", "tags", "description", "system_time", "computer_name", "user_id",
+                    "event_id", "provider_name", "ml_cluster", "ip_address", "task", "rule_level",
+                    "target_user_name", "target_domain_name", "ruleid", "raw", "unique_hash",
+                    "tactics", "techniques", "ml_description", "risk"
+                ]
+                for column in columns:
+                    index_name = f"{column}_idx"
+                    cursor.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON sigma_alerts({column})")
+                connection.commit()
+                logger.info("Indexes created on all columns.")
+    except Error as e:
+        logger.error(f"Error creating indexes: {e}")
+    finally:
+        if connection.is_connected():
+            connection.close()
+
 if __name__ == "__main__":
     create_database()
     initialize_sql_tables()
     ensure_column_exists("sigma_alerts", "risk", "INT DEFAULT NULL")
+    create_indexes()
