@@ -30,10 +30,10 @@ bookmark_file = "bookmark.txt"
 # Batch size for database insertions
 BATCH_SIZE = 1000
 
-# Function to normalize fields by converting to lowercase and replacing spaces with dots
+# Function to normalize fields by converting to lowercase and removing spaces
 def normalize_field(field):
     if field:
-        return re.sub(r'\s+', '.', field).strip().lower()
+        return re.sub(r'\s+', '', field).strip().lower()
     return field
 
 # Function to capture only the part after '\\' in user_id if it exists, otherwise capture the whole user_id
@@ -170,6 +170,8 @@ def process_log_file(file_path, last_processed_time):
                 description = description.group(1).strip() if description else None
                 computer_name = normalize_field(computer_name.group(1).strip()) if computer_name else None
                 user_id = process_user_id(user_id.group(1).strip()) if user_id else None
+                if subject_user_name:
+                    user_id = normalize_field(subject_user_name.group(1).strip())
                 event_id = event_id.group(1).strip() if event_id else None
                 provider_name = provider_name.group(1).strip() if provider_name else None
                 ip_address = ip_address.group(1).strip() if ip_address else None
@@ -178,8 +180,6 @@ def process_log_file(file_path, last_processed_time):
                 target_user_name = normalize_field(target_user_name.group(1).strip()) if target_user_name else None
                 target_domain_name = normalize_field(target_domain_name.group(1).strip()) if target_domain_name else None
                 ruleid = ruleid.group(1).strip() if ruleid else None
-                if subject_user_name:
-                    user_id = normalize_field(subject_user_name.group(1).strip())
 
                 # Parse tags to extract tactics and techniques
                 if tags:
